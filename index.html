@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Pocket Photobooth Pro</title>
+  <style>
+    :root {
+      --bg: #0d0d11;
+      --card-bg: #181820;
+      --accent: #ff3366;
+      --text: #ffffff;
+      --text-muted: #8e8e9f;
+      --frame-bg: #ffffff;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top, 16px) 14px env(safe-area-inset-bottom, 16px);
+      overflow-x: hidden;
+    }
+    header {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 6px 14px;
+    }
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(45deg, #ff3366, #ff99c8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header-actions { display: flex; gap: 8px; }
+    .pill-btn {
+      background: #252532;
+      border: 1px solid #3d3d4e;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    .pill-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .booth-container {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .viewfinder-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      background: #000;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    video.no-mirror { transform: scaleX(1); }
+    
+    .filter-none { filter: none; }
+    .filter-bw { filter: grayscale(100%) contrast(140%) brightness(95%); }
+    .filter-film { filter: sepia(35%) contrast(110%) brightness(96%) saturate(85%); }
+    .filter-glow { filter: brightness(108%) contrast(98%) saturate(120%); }
+    .filter-cyber { filter: hue-rotate(185deg) contrast(115%) saturate(120%); }
+
+    .flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.08s ease-out;
+      z-index: 10;
+    }
+    .flash-overlay.active { opacity: 1; }
+    
+    .countdown-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 8rem;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 4px 24px rgba(0,0,0,0.7);
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s;
+      z-index: 11;
+    }
+    .countdown-overlay.show { opacity: 1; transform: scale(1); }
+    
+    .status-badge {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(10px);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: 1px solid rgba(255,255,255,0.15);
+      z-index: 9;
+    }
+    .kiosk-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 12;
+      cursor: pointer;
+    }
+    .kiosk-overlay.active { display: flex; }
+    .kiosk-banner {
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      padding: 18px 36px;
+      border-radius: 40px;
+      box-shadow: 0 10px 30px rgba(255,51,102,0.5);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .toolbar-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      width: 100%;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+    .toolbar-row::-webkit-scrollbar { display: none; }
+    
+    .filter-btn {
+      background: var(--card-bg);
+      border: 1px solid #2d2d3a;
+      color: var(--text-muted);
+      padding: 7px 14px;
+      border-radius: 16px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .filter-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .shutter-row {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px 0;
+    }
+    .round-btn {
+      background: var(--card-bg);
+      border: 1px solid #343444;
+      color: #fff;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+    .shutter-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #fff;
+      border: 6px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 24px rgba(255, 51, 102, 0.4);
+    }
+    .shutter-inner {
+      width: 56px;
+      height: 56px;
+      background: var(--accent);
+      border-radius: 50%;
+      transition: transform 0.1s;
+    }
+    .shutter-btn:active .shutter-inner { transform: scale(0.85); }
+
+    /* Studio Modal */
+    .studio-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 8, 12, 0.94);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top, 16px) 14px env(safe-area-inset-bottom, 16px);
+      overflow-y: auto;
+    }
+    .studio-modal.active { display: flex; }
+    
+    .canvas-container {
+      position: relative;
+      max-height: 52vh;
+      display: flex;
+      justify-content: center;
+      margin: 8px 0;
+    }
+    .strip-preview {
+      max-height: 52vh;
+      max-width: 92%;
+      border-radius: 10px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.85);
+      object-fit: contain;
+    }
+    #doodleCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      border-radius: 10px;
+      display: none;
+    }
+    #doodleCanvas.active { display: block; }
+
+    .editor-card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card-bg);
+      border-radius: 22px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid #282836;
+      margin-bottom: 20px;
+    }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .thumbs-row { display: flex; gap: 8px; overflow-x: auto; }
+    .thumb-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 68px;
+      height: 52px;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb-retake-badge {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 800;
+      color: #ff99c8;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .thumb-wrap:hover .thumb-retake-badge, .thumb-wrap:active .thumb-retake-badge { opacity: 1; }
+
+    .swatches-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+    .color-swatch.active {
+      border-color: var(--accent);
+      transform: scale(1.15);
+    }
+    .pattern-btn {
+      background: #252533;
+      border: 1px solid #39394d;
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .pattern-btn.active { background: var(--accent); border-color: var(--accent); }
+
+    .sticker-tray {
+      display: flex;
+      gap: 10px;
+      font-size: 1.4rem;
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+    .sticker-item { cursor: pointer; transition: transform 0.15s; }
+    .sticker-item:active { transform: scale(1.3); }
+
+    .input-field {
+      background: #111116;
+      border: 1px solid #303040;
+      color: #fff;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .action-btn {
+      flex: 1;
+      padding: 13px;
+      border-radius: 14px;
+      border: none;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-main { background: var(--accent); color: #fff; }
+    .btn-sub { background: #262635; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <header id="mainHeader">
+    <div class="brand-title">★ PHOTOBOOTH</div>
+    <div class="header-actions">
+      <button class="pill-btn" id="timerToggle">⏱ 3s</button>
+      <button class="pill-btn" id="soundToggle">🔊 On</button>
+      <button class="pill-btn" id="kioskBtn">Party Mode</button>
+    </div>
+  </header>
+
+  <div class="booth-container">
+    <div class="viewfinder-wrapper" id="viewfinder">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="flash-overlay" id="flash"></div>
+      <div class="countdown-overlay" id="countdown">3</div>
+      <div class="status-badge" id="shotBadge" style="display:none;">SHOT 1 / 4</div>
+      <div class="kiosk-overlay" id="kioskOverlay">
+        <div class="kiosk-banner">TOUCH TO START ★</div>
+      </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="toolbar-row" id="filtersBar">
+      <button class="filter-btn active" data-filter="none">Natural</button>
+      <button class="filter-btn" data-filter="bw">Haru B&amp;W</button>
+      <button class="filter-btn" data-filter="film">35mm Film</button>
+      <button class="filter-btn" data-filter="glow">Soft Studio</button>
+      <button class="filter-btn" data-filter="cyber">Cyber Tone</button>
+    </div>
+
+    <!-- Shutter Controls -->
+    <div class="shutter-row" id="shutterRow">
+      <button class="round-btn" id="flipCamBtn" title="Switch Camera">↻</button>
+      <div class="shutter-btn" id="startShutterBtn">
+        <div class="shutter-inner"></div>
+      </div>
+      <button class="round-btn" id="mirrorToggleBtn" title="Toggle Mirror">⇄</button>
+    </div>
+  </div>
+
+  <!-- Studio Editor Modal -->
+  <div class="studio-modal" id="studioModal">
+    <div class="canvas-container">
+      <img id="previewImg" class="strip-preview" alt="Photobooth Strip" />
+      <canvas id="doodleCanvas"></canvas>
+    </div>
+
+    <div class="editor-card">
+      <!-- Retake Thumbnails -->
+      <div>
+        <div class="section-label">TAP ANY SHOT TO RETAKE IT</div>
+        <div class="thumbs-row" id="thumbsRow"></div>
+      </div>
+
+      <!-- Frame Styles & Themes -->
+      <div>
+        <div class="section-label">FRAME TYPE &amp; THEME</div>
+        <div class="swatches-row">
+          <button class="pattern-btn active" data-pattern="solid">Classic Solid</button>
+          <button class="pattern-btn" data-pattern="film">🎞 35mm Film</button>
+          <button class="pattern-btn" data-pattern="aura">🌅 Sunset Aura</button>
+          <button class="pattern-btn" data-pattern="hearts">🤍 Hearts</button>
+          <button class="pattern-btn" data-pattern="clouds">☁️ Haru Sky</button>
+          <button class="pattern-btn" data-pattern="stars">✨ Midnight</button>
+          <button class="pattern-btn" data-pattern="washi">🏷 Washi Tape</button>
+          <button class="pattern-btn" data-pattern="checker">Checker</button>
+        </div>
+      </div>
+
+      <!-- Frame Colors & Corner Rounding -->
+      <div>
+        <div class="section-label">FRAME COLOR &amp; CORNERS</div>
+        <div class="swatches-row">
+          <div class="color-swatch active" style="background:#ffffff;" data-color="#ffffff"></div>
+          <div class="color-swatch" style="background:#121214;" data-color="#121214"></div>
+          <div class="color-swatch" style="background:#fdfbf7;" data-color="#fdfbf7"></div>
+          <div class="color-swatch" style="background:#ffd1dc;" data-color="#ffd1dc"></div>
+          <div class="color-swatch" style="background:#d0e8ff;" data-color="#d0e8ff"></div>
+          <div class="color-swatch" style="background:#d8f3dc;" data-color="#d8f3dc"></div>
+          <div class="color-swatch" style="background:#e0aaff;" data-color="#e0aaff"></div>
+          <div class="color-swatch" style="background:#fef08a;" data-color="#fef08a"></div>
+          <div class="color-swatch" style="background:#d90429;" data-color="#d90429"></div>
+          <button class="pattern-btn" id="roundedCornersBtn">Rounded: ON</button>
+        </div>
+      </div>
+
+      <!-- Layout Selector -->
+      <div>
+        <div class="section-label">STRIP LAYOUT</div>
+        <div class="swatches-row">
+          <button class="pattern-btn active" data-layout="strip">1×4 Strip</button>
+          <button class="pattern-btn" data-layout="twin">2×4 Twin Print</button>
+          <button class="pattern-btn" data-layout="grid">2×2 Grid</button>
+          <button class="pattern-btn" data-layout="polaroid">Polaroid</button>
+        </div>
+      </div>
+
+      <!-- Stickers & Signature Doodle -->
+      <div>
+        <div class="section-label">ADD STAMP / DRAW SIGNATURE</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="sticker-tray">
+            <span class="sticker-item" data-emoji="✨">✨</span>
+            <span class="sticker-item" data-emoji="🎀">🎀</span>
+            <span class="sticker-item" data-emoji="🍒">🍒</span>
+            <span class="sticker-item" data-emoji="🤍">🤍</span>
+            <span class="sticker-item" data-emoji="⭐">⭐</span>
+            <span class="sticker-item" data-emoji="🧸">🧸</span>
+          </div>
+          <button class="pattern-btn" id="doodleToggleBtn">✏️ Draw</button>
+        </div>
+      </div>
+
+      <!-- Custom Caption & Font -->
+      <div>
+        <div class="section-label">CAPTION &amp; FONT</div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" class="input-field" id="captionInput" placeholder="Caption (e.g. BFFs 2026)" value="MEMORIES" maxlength="24" style="flex:1;" />
+          <select class="input-field" id="fontSelect" style="width:110px;">
+            <option value="sans-serif">Modern</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="Courier New, monospace">Typewriter</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="button-group">
+        <button class="action-btn btn-sub" id="retakeAllBtn">New Session</button>
+        <button class="action-btn btn-main" id="saveShareBtn">Save to Photos / Share</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="renderCanvas" style="display:none;"></canvas>
+
+  <script>
+    let currentStream = null;
+    let facingMode = 'user';
+    let isMirrored = true;
+    let currentFilter = 'none';
+    let timerDuration = 3;
+    let soundEnabled = true;
+    let frameColor = '#ffffff';
+    let framePattern = 'solid';
+    let roundedPhotos = true;
+    let currentLayout = 'strip';
+    let currentFont = 'sans-serif';
+    let capturedFrames = [];
+    let placedStickers = [];
+    let retargetShotIndex = -1;
+    let isDrawing = false;
+    let doodleMode = false;
+    let audioCtx = null;
+
+    const video = document.getElementById('video');
+    const flash = document.getElementById('flash');
+    const countdown = document.getElementById('countdown');
+    const shotBadge = document.getElementById('shotBadge');
+    const startShutterBtn = document.getElementById('startShutterBtn');
+    const flipCamBtn = document.getElementById('flipCamBtn');
+    const mirrorToggleBtn = document.getElementById('mirrorToggleBtn');
+    const timerToggle = document.getElementById('timerToggle');
+    const soundToggle = document.getElementById('soundToggle');
+    const kioskBtn = document.getElementById('kioskBtn');
+    const kioskOverlay = document.getElementById('kioskOverlay');
+    const studioModal = document.getElementById('studioModal');
+    const previewImg = document.getElementById('previewImg');
+    const thumbsRow = document.getElementById('thumbsRow');
+    const captionInput = document.getElementById('captionInput');
+    const fontSelect = document.getElementById('fontSelect');
+    const doodleCanvas = document.getElementById('doodleCanvas');
+    const doodleToggleBtn = document.getElementById('doodleToggleBtn');
+    const roundedCornersBtn = document.getElementById('roundedCornersBtn');
+    const retakeAllBtn = document.getElementById('retakeAllBtn');
+    const saveShareBtn = document.getElementById('saveShareBtn');
+    const renderCanvas = document.getElementById('renderCanvas');
+
+    function playBeep(freq = 600, duration = 0.08) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function triggerFlash() {
+      playBeep(1200, 0.12);
+      flash.classList.add('active');
+      setTimeout(() => flash.classList.remove('active'), 120);
+    }
+
+    async function startCamera() {
+      if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+      try {
+        const constraints = {
+          video: { facingMode: facingMode, width: { ideal: 1920 }, height: { ideal: 1440 } },
+          audio: false
+        };
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
+        await video.play();
+      } catch (err) {
+        alert("Camera permission required. Open via Safari on your iPad or phone.");
+      }
+    }
+
+    function updateMirror() {
+      if (isMirrored) video.classList.remove('no-mirror');
+      else video.classList.add('no-mirror');
+    }
+
+    flipCamBtn.addEventListener('click', () => {
+      facingMode = (facingMode === 'user') ? 'environment' : 'user';
+      isMirrored = (facingMode === 'user');
+      updateMirror();
+      startCamera();
+    });
+
+    mirrorToggleBtn.addEventListener('click', () => {
+      isMirrored = !isMirrored;
+      updateMirror();
+    });
+
+    timerToggle.addEventListener('click', () => {
+      timerDuration = (timerDuration === 3) ? 5 : (timerDuration === 5 ? 7 : 3);
+      timerToggle.innerText = `⏱ ${timerDuration}s`;
+    });
+
+    soundToggle.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      soundToggle.innerText = soundEnabled ? '🔊 On' : '🔇 Mute';
+    });
+
+    kioskBtn.addEventListener('click', () => kioskOverlay.classList.toggle('active'));
+    kioskOverlay.addEventListener('click', () => {
+      kioskOverlay.classList.remove('active');
+      runSession();
+    });
+
+    document.querySelectorAll('#filtersBar .filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#filtersBar .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        video.className = `filter-${currentFilter}` + (isMirrored ? '' : ' no-mirror');
+      });
+    });
+
+    function captureFrame() {
+      const c = document.createElement('canvas');
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      let targetW = w, targetH = Math.floor(w * 0.75);
+      if (targetH > h) {
+        targetH = h;
+        targetW = Math.floor(h * 1.333);
+      }
+      c.width = 900;
+      c.height = 675;
+      const ctx = c.getContext('2d');
+
+      if (isMirrored) {
+        ctx.translate(c.width, 0);
+        ctx.scale(-1, 1);
+      }
+
+      if (currentFilter === 'bw') ctx.filter = 'grayscale(100%) contrast(140%) brightness(95%)';
+      else if (currentFilter === 'film') ctx.filter = 'sepia(35%) contrast(110%) brightness(96%) saturate(85%)';
+      else if (currentFilter === 'glow') ctx.filter = 'brightness(108%) contrast(98%) saturate(120%)';
+      else if (currentFilter === 'cyber') ctx.filter = 'hue-rotate(185deg) contrast(115%) saturate(120%)';
+
+      const sx = (w - targetW) / 2;
+      const sy = (h - targetH) / 2;
+      ctx.drawImage(video, sx, sy, targetW, targetH, 0, 0, c.width, c.height);
+      ctx.filter = 'none';
+
+      if (currentFilter === 'film') {
+        const imgData = ctx.getImageData(0, 0, c.width, c.height);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const noise = (Math.random() - 0.5) * 22;
+          data[i] = Math.min(255, Math.max(0, data[i] + noise));
+          data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
+          data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise));
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+      return c;
+    }
+
+    async function runSession() {
+      if (retargetShotIndex === -1) capturedFrames = [];
+      const totalShots = (retargetShotIndex !== -1) ? 1 : 4;
+      shotBadge.style.display = 'block';
+
+      for (let i = 0; i < totalShots; i++) {
+        const shotNumber = (retargetShotIndex !== -1) ? (retargetShotIndex + 1) : (i + 1);
+        shotBadge.innerText = `SHOT ${shotNumber} / 4`;
+
+        for (let s = timerDuration; s >= 1; s--) {
+          countdown.innerText = s;
+          countdown.classList.add('show');
+          playBeep(520, 0.08);
+          await new Promise(r => setTimeout(r, 900));
+          countdown.classList.remove('show');
+          await new Promise(r => setTimeout(r, 100));
+        }
+
+        triggerFlash();
+        const frame = captureFrame();
+
+        if (retargetShotIndex !== -1) {
+          capturedFrames[retargetShotIndex] = frame;
+        } else {
+          capturedFrames.push(frame);
+        }
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      retargetShotIndex = -1;
+      shotBadge.style.display = 'none';
+      buildStrip();
+      studioModal.classList.add('active');
+    }
+
+    startShutterBtn.addEventListener('click', () => runSession());
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !studioModal.classList.contains('active')) {
+        e.preventDefault();
+        runSession();
+      }
+    });
+
+    function updateThumbs() {
+      thumbsRow.innerHTML = '';
+      capturedFrames.forEach((frame, idx) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'thumb-wrap';
+        wrap.innerHTML = `<img src="${frame.toDataURL()}" /><div class="thumb-retake-badge">RETAKE</div>`;
+        wrap.addEventListener('click', () => {
+          retargetShotIndex = idx;
+          studioModal.classList.remove('active');
+          runSession();
+        });
+        thumbsRow.appendChild(wrap);
+      });
+    }
+
+    // Advanced Frame Pattern Rendering
+    function fillAdvancedPattern(ctx, w, h) {
+      if (framePattern === 'film') {
+        ctx.fillStyle = '#0a0a0d';
+        ctx.fillRect(0, 0, w, h);
+
+        // Sprocket Holes
+        ctx.fillStyle = '#ffffff';
+        const holeW = 16, holeH = 24, gap = 44;
+        for (let y = 30; y < h - 40; y += gap) {
+          // Left sprockets
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(12, y, holeW, holeH, 4);
+          else ctx.rect(12, y, holeW, holeH);
+          ctx.fill();
+
+          // Right sprockets
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(w - 28, y, holeW, holeH, 4);
+          else ctx.rect(w - 28, y, holeW, holeH);
+          ctx.fill();
+        }
+
+        // Film edge labels
+        ctx.font = '700 13px monospace';
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillText('FUJIFILM 400', 36, 26);
+        ctx.fillText('35MM COLOR', w - 140, 26);
+        return;
+      }
+
+      if (framePattern === 'aura') {
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#ffd1dc');
+        grad.addColorStop(0.5, '#e0aaff');
+        grad.addColorStop(1, '#c0fdff');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        return;
+      }
+
+      if (framePattern === 'clouds') {
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#bde0fe');
+        sky.addColorStop(1, '#e8f4fd');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        for (let cy = 60; cy < h; cy += 240) {
+          ctx.beginPath();
+          ctx.arc(40, cy, 32, 0, Math.PI * 2);
+          ctx.arc(w - 50, cy + 80, 42, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        return;
+      }
+
+      if (framePattern === 'stars') {
+        ctx.fillStyle = '#0b0c1b';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#ffd166';
+        for (let i = 0; i < 48; i++) {
+          const sx = ((i * 137) % (w - 40)) + 20;
+          const sy = ((i * 263) % (h - 40)) + 20;
+          ctx.fillRect(sx, sy, 3, 3);
+          if (i % 4 === 0) {
+            ctx.font = '14px sans-serif';
+            ctx.fillText('✦', sx - 5, sy + 5);
+          }
+        }
+        return;
+      }
+
+      // Base solid fill
+      ctx.fillStyle = frameColor;
+      ctx.fillRect(0, 0, w, h);
+
+      if (framePattern === 'checker') {
+        const size = 32;
+        ctx.fillStyle = 'rgba(0,0,0,0.06)';
+        for (let y = 0; y < h; y += size) {
+          for (let x = 0; x < w; x += size) {
+            if ((Math.floor(x/size) + Math.floor(y/size)) % 2 === 0) {
+              ctx.fillRect(x, y, size, size);
+            }
+          }
+        }
+      } else if (framePattern === 'hearts') {
+        ctx.font = '16px sans-serif';
+        for (let y = 30; y < h; y += 75) {
+          ctx.fillText('🤍', 14, y);
+          ctx.fillText('🤍', w - 30, y);
+        }
+      }
+    }
+
+    // Helper: Draw photo with optional rounded photocard corners
+    function drawPhotoItem(ctx, img, x, y, w, h) {
+      ctx.save();
+      if (roundedPhotos) {
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 20);
+        else ctx.rect(x, y, w, h);
+        ctx.clip();
+      }
+      ctx.drawImage(img, x, y, w, h);
+      ctx.restore();
+
+      // Washi Tape overlay
+      if (framePattern === 'washi') {
+        ctx.fillStyle = 'rgba(255, 183, 178, 0.75)';
+        ctx.fillRect(x + 10, y - 10, 60, 22);
+        ctx.fillStyle = 'rgba(226, 240, 203, 0.75)';
+        ctx.fillRect(x + w - 70, y - 10, 60, 22);
+      }
+    }
+
+    function buildStrip() {
+      const padding = (framePattern === 'film') ? 56 : 42;
+      const gap = 20;
+      const photoW = 760;
+      const photoH = 570;
+      const footerH = 175;
+      const ctx = renderCanvas.getContext('2d');
+
+      if (currentLayout === 'strip') {
+        renderCanvas.width = photoW + (padding * 2);
+        renderCanvas.height = (photoH * 4) + (gap * 3) + (padding * 2) + footerH;
+        fillAdvancedPattern(ctx, renderCanvas.width, renderCanvas.height);
+
+        capturedFrames.forEach((f, idx) => {
+          drawPhotoItem(ctx, f, padding, padding + (idx * (photoH + gap)), photoW, photoH);
+        });
+        drawFooter(ctx, renderCanvas.width, renderCanvas.height, footerH);
+
+      } else if (currentLayout === 'twin') {
+        const stripW = photoW + (padding * 2);
+        renderCanvas.width = (stripW * 2) + 20;
+        renderCanvas.height = (photoH * 4) + (gap * 3) + (padding * 2) + footerH;
+        fillAdvancedPattern(ctx, renderCanvas.width, renderCanvas.height);
+
+        [0, stripW + 20].forEach(offset => {
+          capturedFrames.forEach((f, idx) => {
+            drawPhotoItem(ctx, f, offset + padding, padding + (idx * (photoH + gap)), photoW, photoH);
+          });
+          drawFooter(ctx, offset + (stripW / 2), renderCanvas.height, footerH, true);
+        });
+
+      } else if (currentLayout === 'grid') {
+        renderCanvas.width = (photoW * 2) + (padding * 2) + gap;
+        renderCanvas.height = (photoH * 2) + (padding * 2) + gap + footerH;
+        fillAdvancedPattern(ctx, renderCanvas.width, renderCanvas.height);
+
+        capturedFrames.forEach((f, idx) => {
+          const col = idx % 2;
+          const row = Math.floor(idx / 2);
+          const x = padding + (col * (photoW + gap));
+          const y = padding + (row * (photoH + gap));
+          drawPhotoItem(ctx, f, x, y, photoW, photoH);
+        });
+        drawFooter(ctx, renderCanvas.width, renderCanvas.height, footerH);
+
+      } else if (currentLayout === 'polaroid') {
+        renderCanvas.width = photoW + (padding * 2);
+        renderCanvas.height = photoH + padding + 220;
+        fillAdvancedPattern(ctx, renderCanvas.width, renderCanvas.height);
+        if (capturedFrames[0]) drawPhotoItem(ctx, capturedFrames[0], padding, padding, photoW, photoH);
+        drawFooter(ctx, renderCanvas.width, renderCanvas.height, 200);
+      }
+
+      // Placed Stickers
+      placedStickers.forEach(s => {
+        ctx.font = '54px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.emoji, s.x, s.y);
+      });
+
+      // Composite Doodles
+      if (doodleCanvas.width > 0) {
+        ctx.drawImage(doodleCanvas, 0, 0, renderCanvas.width, renderCanvas.height);
+      }
+
+      previewImg.src = renderCanvas.toDataURL('image/png');
+      updateThumbs();
+    }
+
+    function drawFooter(ctx, centerXOrWidth, totalH, footerH, isTwinOffset = false) {
+      const isDark = (frameColor === '#121214' || framePattern === 'film' || framePattern === 'stars');
+      ctx.fillStyle = isDark ? '#ffffff' : '#121214';
+      ctx.textAlign = 'center';
+
+      const posX = isTwinOffset ? centerXOrWidth : (centerXOrWidth / 2);
+      const startY = totalH - footerH + 50;
+
+      ctx.font = `700 32px ${currentFont}`;
+      const caption = (captionInput.value || 'PHOTO BOOTH').toUpperCase();
+      ctx.fillText(`★ ${caption} ★`, posX, startY);
+
+      ctx.font = `500 18px ${currentFont}`;
+      ctx.fillStyle = isDark ? '#a1a1aa' : '#686875';
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+      ctx.fillText(`${today} • SESSION #84920`, posX, startY + 34);
+
+      // Barcode
+      const barY = startY + 54;
+      const barH = 26;
+      ctx.fillStyle = isDark ? '#ffffff' : '#121214';
+      for (let b = -120; b < 120; b += 7) {
+        const thickness = (b % 14 === 0) ? 4 : 2;
+        ctx.fillRect(posX + b, barY, thickness, barH);
+      }
+    }
+
+    // Color Swatches
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        frameColor = swatch.dataset.color;
+        buildStrip();
+      });
+    });
+
+    // Frame Patterns
+    document.querySelectorAll('.pattern-btn[data-pattern]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pattern-btn[data-pattern]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        framePattern = btn.dataset.pattern;
+        buildStrip();
+      });
+    });
+
+    // Rounded Corners Toggle
+    roundedCornersBtn.addEventListener('click', () => {
+      roundedPhotos = !roundedPhotos;
+      roundedCornersBtn.innerText = roundedPhotos ? 'Rounded: ON' : 'Rounded: OFF';
+      roundedCornersBtn.classList.toggle('active', roundedPhotos);
+      buildStrip();
+    });
+
+    // Layout Selector
+    document.querySelectorAll('.pattern-btn[data-layout]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pattern-btn[data-layout]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentLayout = btn.dataset.layout;
+        buildStrip();
+      });
+    });
+
+    fontSelect.addEventListener('change', () => {
+      currentFont = fontSelect.value;
+      buildStrip();
+    });
+
+    captionInput.addEventListener('input', () => buildStrip());
+
+    // Stickers
+    document.querySelectorAll('.sticker-item').forEach(st => {
+      st.addEventListener('click', () => {
+        placedStickers.push({
+          emoji: st.dataset.emoji,
+          x: renderCanvas.width / 2 + (Math.random() * 200 - 100),
+          y: renderCanvas.height / 2 + (Math.random() * 300 - 150)
+        });
+        buildStrip();
+      });
+    });
+
+    // Doodle Pen
+    doodleToggleBtn.addEventListener('click', () => {
+      doodleMode = !doodleMode;
+      doodleCanvas.classList.toggle('active', doodleMode);
+      doodleToggleBtn.classList.toggle('active', doodleMode);
+      if (doodleMode) {
+        doodleCanvas.width = renderCanvas.width;
+        doodleCanvas.height = renderCanvas.height;
+      } else {
+        buildStrip();
+      }
+    });
+
+    const dCtx = doodleCanvas.getContext('2d');
+    function getTouchPos(e) {
+      const rect = doodleCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (doodleCanvas.width / rect.width),
+        y: (clientY - rect.top) * (doodleCanvas.height / rect.height)
+      };
+    }
+
+    ['mousedown', 'touchstart'].forEach(ev => doodleCanvas.addEventListener(ev, (e) => {
+      isDrawing = true;
+      const pos = getTouchPos(e);
+      dCtx.beginPath();
+      dCtx.moveTo(pos.x, pos.y);
+      dCtx.strokeStyle = '#ff3366';
+      dCtx.lineWidth = 8;
+      dCtx.lineCap = 'round';
+    }));
+
+    ['mousemove', 'touchmove'].forEach(ev => doodleCanvas.addEventListener(ev, (e) => {
+      if (!isDrawing) return;
+      e.preventDefault();
+      const pos = getTouchPos(e);
+      dCtx.lineTo(pos.x, pos.y);
+      dCtx.stroke();
+    }));
+
+    ['mouseup', 'touchend'].forEach(ev => doodleCanvas.addEventListener(ev, () => {
+      isDrawing = false;
+      buildStrip();
+    }));
+
+    retakeAllBtn.addEventListener('click', () => {
+      placedStickers = [];
+      dCtx.clearRect(0, 0, doodleCanvas.width, doodleCanvas.height);
+      studioModal.classList.remove('active');
+    });
+
+    saveShareBtn.addEventListener('click', () => {
+      renderCanvas.toBlob(async (blob) => {
+        const file = new File([blob], `photobooth_${Date.now()}.png`, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Photobooth Strip',
+              text: 'Photo taken with Pocket Photobooth!'
+            });
+            return;
+          } catch (err) {
+            if (err.name !== 'AbortError') console.error(err);
+          }
+        }
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `photobooth_${Date.now()}.png`;
+        link.click();
+      }, 'image/png');
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>
